@@ -1,6 +1,6 @@
 # 🧬 Computational Structural Biology Toolkit
 
-Welcome to my collection of Python scripts for analyzing and processing protein structures! Whether you're working with **PDB files**, calculating **RMSD**, or analyzing **pi-stacking interactions**, this repository has you covered. 🚀
+A collection of Python scripts for analyzing and processing protein structures and ensembles! 🚀
 
 ---
 ## 📂 **Scripts Overview**
@@ -69,13 +69,4 @@ python Calculate_Deviation_Diversity_Ens.py <crystal_structure.pdb> <ensemble_di
 ```bash
 python Analyse_AlphaFold_Outputs.py <input_pdb_dir> <output_csv> [ref_pdb]
 ```
-```
-
----
-<a href="https://www.linkedin.com/in/niayesh-zarifi/" target="_blank">
-  <img height="30" style="vertical-align: middle;" src="https://cdn4.iconfinder.com/data/icons/colorful-guache-social-media-logos-1/159/social-media_linkedin-512.png" alt="LinkedIn"/>
-</a>
-
----
-✨ *Happy coding!* ✨
 
