@@ -1,22 +1,44 @@
+#!/usr/bin/env python3
+
+"""
+Pi-Stacking Distance and Angle Calculation
+===========================================
+Author: Niayesh Zarifi
+
+This script analyzes multiple PDB files in a given directory, calculating pi-stacking
+interactions by computing centroid distances and angles between aromatic ring systems.
+
+Usage:
+------
+    python Pi_Stacking_Analysis.py <pdb_directory> <output_csv> <atom_list>
+
+Arguments:
+----------
+    - pdb_directory: Path to the directory containing PDB files.
+    - output_csv: Name of the output CSV file to store results.
+    - atom_list: List of atom groups for pi-stacking calculations in the format:
+      "[['A48CG','A48CD2','A48CE2','A48CZ','A48CE1','A48CD1'],
+        ['A301C5','A301C4','A301C3A','A301C7A','A301C7','A301C6']]"
+
+Example:
+--------
+    python Pi_Stacking_Analysis.py ./pdbs/ results.csv "[['A48CG','A48CD2','A48CE2','A48CZ','A48CE1','A48CD1'],['A301C5','A301C4','A301C3A','A301C7A','A301C7','A301C6']]"
+
+Output:
+-------
+    - A CSV file containing centroid distances and angles between aromatic groups.
+"""
+
+
 import numpy as np
 from math import pow
 from math import sqrt
 from math import acos
 from os import listdir
-
-# helper function _isint  -----------------------------------------------------
-def _isint(_val):
-    """Returns True if _val can be converted to an integer, False if not."""
-    try:
-        int(_val)
-        return True
-    except ValueError:
-        return False
-#------------------------------------------------------------------------------
-        
+import sys
 
 # extract specific pdb coordinates  -------------------------------------------
-def _extractpdbcoordinates(_inputfile, _atoms):
+def Extract_PDB_Coords(_inputfile, _atoms):
     """Extracts and returns a specific set of atomic coordinates from a protein
     data bank (pdb) file. Requires two arguments: location and name of the
     input file (string), and a list of the atoms to extract (list of strings)
@@ -67,7 +89,7 @@ def _extractpdbcoordinates(_inputfile, _atoms):
 
 
 # compute geometric information  ----------------------------------------------
-def _computegeometry(_crds):
+def Compute_Geometry(_crds):
     """Compute geometry for a set of atomic coordinates. Specifically, the
     centroid for each coordinate group, the distance between centroids of each
     coordinate group, and the angle between coordinate groups. The function
@@ -128,58 +150,8 @@ def _computegeometry(_crds):
     return(_dists, _angles)
 #------------------------------------------------------------------------------
 
-
-# read and extract msd scores  ------------------------------------------------
-def _extractmsdscores(_inputfile, _strs=[]):
-    """Reads a triad msd output file and returns sequence scores across
-    ensemble states. Requires the input file (string). Key _strs sets the top
-    (n, int) number of sequences to extract, default = [] (all)."""
-    
-    # open the msd file and read line-by-line
-    _msd = open(_inputfile, 'r')
-    _read = False
-    _seqs = []
-    for _line in _msd:
-        # format _line
-        _line = _line.replace('\n', '')
-        _line = _line.split()
-        # parse sequence information
-        if _read and _isint(_line[0]):
-            _seqno = int(_line[0])
-            # build sequence string if it falls within the top _strs count
-            if _seqno < _strs:
-                _score = float(_line[2])
-                _statescores = [float(_it) for _it in _line[5:-2]]
-                _seq = list(_line[3])
-                _name = ''
-                for _s, _w in zip(_seq, _wt):
-                    if _s == '-':
-                        _name = _name + _w
-                    else:
-                        _name = _name + _s
-                _seqs.append([_name, _score, _statescores])
-            # terminate sequence count exceeded
-            else:
-                _read = False
-        # terminate reading sequences
-        else:
-            _read = False
-        # identify data location, set _read  to True
-        if _read is False and len(_line) > 0\
-           and _line[0] == 'Index' and _line[1] == 'Tags':
-            _read = True
-            _states = (_line[5:-2])
-        # identify the wt sequence
-        if _read is False and len(_line) > 0 and _line[0] == 'WT':
-            _wt = _line[1:]
-    # close multi_design.stdout and return states and scores
-    _msd.close()
-    return(_states, _seqs)
-#------------------------------------------------------------------------------
-
-
 # helper function to read directory and return files  -------------------------
-def _readdirectory(_directory, _ext='.pdb'):
+def Read_Dir(_directory, _ext='.pdb'):
     """Return a list of the files in the directory (string) provided they share
     the same extension (string)."""
     
@@ -192,52 +164,8 @@ def _readdirectory(_directory, _ext='.pdb'):
     return(_filelist)
 #------------------------------------------------------------------------------
 
-
-# write a .csv file for the multistate design output  -------------------------
-def _writemsdcsv(_csvfile, _state, _sequences):
-    """Write a .csv file with the specific formatting. Col-1: Sequence, Col-2:
-    Fitness, and Col-3 to Col-n: Scores across all states."""
-    
-    # open, write, and close csv file
-    _wfile = open(_csvfile, 'w')
-    _wfile.write('Sequence,Fitness')
-    for _state in _states:
-        _wfile.write(','+_state)
-    for _seq in _sequences:
-        _wfile.write('\n')
-        _wfile.write(_seq[0]+','+str(_seq[1]))
-        for _scores in _seq[2]:
-            _wfile.write(','+str(_scores))
-    _wfile.close()
-    return None
-#------------------------------------------------------------------------------
-
-
-# prepare a list of pdb files  ------------------------------------------------
-def _preppdblist(_sequences, _states, _existingpdbs):
-    """Generate the list of pdb files to perform geometry analysis against. The
-    function expects the sequence list returned by _extractmsdscores, the state
-    list returned by _extractmsd scores, and the list of existing pdb files
-    found in the directory."""
-    
-    _pdbs = []
-    _soln = 0
-    for _seq in _sequences:
-        _mpi = 0
-        _pdb = []
-        for _state in _states:
-            _name = _state[0:-4]+'_designed_mpi'+str(_mpi)+'_soln'+str(_soln)+'.pdb'
-            if any([_name == _it for _it in _existingpdbs]):
-                _pdb.append(_name)
-                _mpi = _mpi + 1
-        _pdbs.append(_pdb)
-        _soln = _soln + 1
-    return(_pdbs)
-#------------------------------------------------------------------------------
-
-
 # helper function for pdb analysis  -------------------------------------------
-def _analyzepdbs(_directory, _pdblist, _atoms):
+def Analyze_Pi_Stacking(_directory, _pdblist, _atoms):
     """Read and analyzed the pdb list."""
     
     _geoms = []
@@ -245,33 +173,52 @@ def _analyzepdbs(_directory, _pdblist, _atoms):
         _geom = []
         _crds = []
         for _group in _atoms:
-            _crd = _extractpdbcoordinates(_directory+_pdbs, _group)
+            _crd = Extract_PDB_Coords(_directory+_pdbs, _group)
             _crds.append(_crd)
 
-        _dist, _angle = _computegeometry(_crds)
+        _dist, _angle = Compute_Geometry(_crds)
 
         _geom.append([_dist, _angle])
         _geoms.append(_geom)
     return(_geoms)
 #------------------------------------------------------------------------------
 
-
-def _writegeomcsv(_csvfile, _geometry, _pdbs):
+def Save_Results(_csvfile, _geometry, _pdbs):
     _wfile = open(_csvfile, 'w')
     _wfile.write('PDB,Distance,Angle')
     for _geom, _pdb in zip(_geometry, _pdbs):
         _wfile.write('\n'+_pdb)
         for _geo in _geom:
-            print(_geo)
             _wfile.write(','+str(_geo[0][0])+','+str(_geo[1][0]))
     _wfile.close()
     return(None)
 
 # RUN SCRIPT HERE  ------------------------------------------------------------
-_directory = '/Volumes/Nia_HardDrive/ensemble_refinement_KEs/PiStacking_withAngle/KE70/Evolved6NT/'
 
-_atoms=[['A48CG','A48CD2','A48CE2','A48CZ','A48CE1','A48CD1'],['A301C5','A301C4','A301C3A','A301C7A','A301C7','A301C6']]
-_pdblist = _readdirectory(_directory)
+def save_output(results, output_csv):
+    """Saves computed pi-stacking distances and angles to a CSV file."""
+    with open(output_csv, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["PDB File", "Group 1", "Group 2", "Distance (Å)", "Angle (°)"])
+        for row in results:
+            writer.writerow([row[0], ",".join(row[1]), ",".join(row[2]), row[3], row[4]])
 
-_geometries = _analyzepdbs(_directory, _pdblist, _atoms)
-_writegeomcsv(_directory+'multi_design_geometry.csv', _geometries, _pdblist)
+def main():
+    """Main function to process the PDB directory and compute pi-stacking interactions."""
+    if len(sys.argv) != 4:
+        print("Usage: python pi_angles_modified.py <pdb_directory> <output_csv> <atom_list>")
+        sys.exit(1)
+    
+    pdb_directory = sys.argv[1]
+    output_csv = sys.argv[2]
+    ring_atoms = eval(sys.argv[3])
+    
+    pdb_files = Read_Dir(pdb_directory)
+    results = Analyze_Pi_Stacking(pdb_directory, pdb_files, ring_atoms)
+    Save_Results(output_csv, results , pdb_files)
+    print(f"Analysis complete. Results saved to {output_csv}")
+
+if __name__ == "__main__":
+    main()
+
+

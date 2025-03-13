@@ -1,84 +1,73 @@
-#! /usr/bin/env python
+#!/usr/bin/env python3
 
-#This script extracts an ensemble model into separate PDB files
+"""
+PDB Ensemble Splitter
+=====================
+Author: Niayesh Zarifi
 
-import os
+This script processes a multi-template PDB file containing an ensemble of structures
+and extracts each member into a separate PDB file.
+
+Usage:
+------
+    python Split_PDBs_Ensemble.py <input_pdb>
+
+Example:
+--------
+    python Split_PDBs_Ensemble.py ensemble.pdb
+
+Outputs:
+--------
+    - Individual PDB files for each model in the ensemble (e.g., ensemble_1.pdb, ensemble_2.pdb, etc.)
+
+"""
+
 import sys
-from stat import *
-import logging
-import argparse
-from argparse import RawTextHelpFormatter
+import os
 
-def generate_output_files_prefix(file_name):
-	main_part_of_name, file_extension = os.path.splitext(file_name)
-	if '.' in file_name:
-		return main_part_of_name
-	else:
-		return file_name
+def read_pdb_file(file_path):
+    """Reads a PDB file and returns its contents as a list of lines."""
+    with open(file_path, 'r') as pdb_file:
+        return pdb_file.readlines()
 
-def extract_models(ensemble_model):
-	generated_output_files_prefix = generate_output_files_prefix(ensemble_model)
-	
-	the_multi_file_stream = open(ensemble_model, "r")
-	model_number = 1
-	new_file_text = ""
-	for line in the_multi_file_stream:
-		line = line.strip() 
-		if line == "ENDMDL":
-			output_file = open(generated_output_files_prefix + "_model_" + str(
-			    model_number) + ".pdb", "w")
-			output_file.write(new_file_text.rstrip('\r\n'))
-			output_file.close()
-			model_number += 1
-			new_file_text = ""
-		elif not line.startswith("MODEL"):
-			new_file_text += line + '\n'
-	
-	the_multi_file_stream.close()
-	model_number -= 1
-	return (model_number, generated_output_files_prefix)
+def split_ensemble_to_models(pdb_lines):
+    """Splits the input PDB lines into separate models and stores them in a dictionary."""
+    models = {}
+    current_model = None
 
+    for line in pdb_lines:
+        if line.startswith("MODEL"):
+            current_model = int(line.split()[1])
+            models[current_model] = [line]
+        elif line.startswith("ENDMDL"):
+            if current_model is not None:
+                models[current_model].append(line)
+                current_model = None
+        elif current_model is not None:
+            models[current_model].append(line)
 
-def THE_MAIN_FUNCTION(File_or_Directory):
-	ensemble_model = File_or_Directory
-	number_of_models = 0
+    return models
 
-	sys.stderr.write("Reading in your file...")
-	number_of_models, output_files_prefix = (
-		extract_models(ensemble_model))
-	sys.stderr.write("\nConcluded. \n")
-        if number_of_models < 2:
-        	sys.stderr.write("Sorry. Only one model was recognized in the file. \
-            		Please examine your file for the presence of multiple 'MODEL' and 'ENDMDL' indicators.")
-        	sys.stderr.write("A file named '"+ output_files_prefix+"_model_1.pdb' was made in the process. ")
-    	else:
-        	sys.stderr.write("File split into "+ str(number_of_models)+" models. ")
-        	sys.stderr.write("\nFiles with names '"+
-            		output_files_prefix+"_model_1.pdb', '"+
-            		output_files_prefix+"_model_2.pdb', etc., "+
-            		"\nhave been created in same directory as the input file.\n\n")
+def write_individual_models(models, input_filename):
+    """Writes each extracted model to its own PDB file, using input filename as prefix."""
+    base_name = os.path.splitext(os.path.basename(input_filename))[0]  # Remove .pdb extension
 
-parser = argparse.ArgumentParser(prog='split_PDBs_Ensemble.py', description="This script extracts an ensemble model into separate PDB files."
-,formatter_class=RawTextHelpFormatter)
+    for model_id, model_lines in models.items():
+        output_filename = f"{base_name}_{model_id}.pdb"
+        with open(output_filename, 'w') as output_file:
+            output_file.writelines(model_lines)
+        print(f"Saved: {output_filename}")
 
-parser.add_argument("File_or_Directory", help="name of the ensemble model required")
+def main():
+    """Main function to process the input PDB file and split its ensemble."""
+    if len(sys.argv) != 2:
+        print("Usage: python Split_PDBs_Ensemble.py <input_pdb>")
+        sys.exit(1)
 
-if len(sys.argv) == 1:
-	parser.print_help()
-	sys.exit(1)
-args = parser.parse_args()
+    input_pdb = sys.argv[1]
+    pdb_lines = read_pdb_file(input_pdb)
+    models = split_ensemble_to_models(pdb_lines)
+    write_individual_models(models, input_pdb)
 
-if os.path.isfile(args.File_or_Directory):
-    	THE_MAIN_FUNCTION(args.File_or_Directory)
-elif os.path.isdir(args.File_or_Directory):
-    	for f in os.listdir(args.File_or_Directory):
-        	pathname = os.path.join(args.File_or_Directory, f)
-        	mode = os.stat(pathname).st_mode #need to import stat module
-        	if S_ISREG(mode) and pathname[-4:].upper() == ".PDB":
-            	# It's a PDB file, call the function
-            		THE_MAIN_FUNCTION(pathname)
-else:
-	sys.stderr.write("SORRY. " + args.File_or_Directory + " IS NOT RECOGNIZED AS A PDB FILE.\n\n")
-    	parser.print_help()
-    	sys.exit(1)
-
+if __name__ == "__main__":
+    main()
